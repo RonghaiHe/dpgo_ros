@@ -294,6 +294,14 @@ class PGOAgentROS : public PGOAgent {
   void publishIterate();
 
   // Publish latest public poses
+  /**
+   * 发布最新的公共位姿信息
+   * 
+   * 该函数负责向邻居机器人发布当前机器人的位姿信息它会根据是否为辅助位姿信息来选择不同的位姿字典，
+   * 并将这些位姿信息打包成PublicPoses消息发布出去
+   * 
+   * @param aux 布尔值，指示是否发布辅助位姿信息如果为true，表示发布辅助位姿；如果为false，表示发布正常位姿
+   */
   void publishPublicPoses(bool aux = false);
 
   // Publish shared loop closures between this robot and others

@@ -37,8 +37,8 @@ int main(int argc, char **argv) {
   Load required options
   ###########################################
   */
-  int d = -1;
-  int r = -1;
+  int d = -1; // dimension=3
+  int r = -1; // relaxation rank >= 3
   int num_robots = 0;
   if (!ros::param::get("~num_robots", num_robots)) {
     ROS_ERROR("Failed to get number of robots!");
@@ -69,14 +69,14 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  dpgo_ros::PGOAgentROSParameters params(d, r, num_robots);
+  dpgo_ros::PGOAgentROSParameters params(d, r, num_robots); // 创建包含参数的实例
 
   /**
   ###########################################
   Load optional options
   ###########################################
   */
-  // Run in asynchronous mode
+  // Run in asynchronous mode 是否异步运行及其对应的求解方法
   ros::param::get("~asynchronous", params.asynchronous);
 
   if (!params.asynchronous) {
@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
   ros::param::get("~RTR_tCG_iterations", params.localOptimizationParams.RTR_tCG_iterations);
   ros::param::get("~RTR_gradnorm_tol", params.localOptimizationParams.gradnorm_tol);
 
-  // Local initialization
+  // Local initialization 设置局部初始化方法
   std::string initMethodName;
   if (ros::param::get("~local_initialization_method", initMethodName)) {
     if (initMethodName == "Odometry") {
@@ -116,17 +116,17 @@ int main(int argc, char **argv) {
     }
   }
 
-  // Cross-robot initialization
+  // Cross-robot initialization 设置跨机器人初始化
   ros::param::get("~multirobot_initialization", params.multirobotInitialization);
   if (!params.multirobotInitialization) {
     ROS_WARN("DPGO cross-robot initialization is OFF.");
   }
 
-  // Nesterov acceleration parameters
+  // Nesterov acceleration parameters 获取加速参数
   ros::param::get("~acceleration", params.acceleration);
   int restart_interval_int;
   if (ros::param::get("~restart_interval", restart_interval_int)) {
-    params.restartInterval = (unsigned) restart_interval_int;
+    params.restartInterval = (unsigned) restart_interval_int; // 设置重启间隔时间
   }
 
   // Maximum delayed iterations
@@ -196,7 +196,7 @@ int main(int argc, char **argv) {
   bool gnc_use_quantile = false;
   ros::param::get("~GNC_use_probability", gnc_use_quantile);
   if (gnc_use_quantile) {
-    double gnc_quantile = 0.9;
+    double gnc_quantile = 0.9; // 默认置信度
     ros::param::get("~GNC_quantile", gnc_quantile);
     double gnc_barc = RobustCost::computeErrorThresholdAtQuantile(gnc_quantile, 3);
     params.robustCostParams.GNCBarc = gnc_barc;

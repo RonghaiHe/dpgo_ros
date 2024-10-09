@@ -105,17 +105,19 @@ void PGOAgentROS::runOnce() {
   } else {
     runOnceSynchronous();
   }
-
+  // Request to publish public poses PGOAgent::iterate 设置为true
   if (mPublishPublicPosesRequested) {
     publishPublicPoses(false);
+    // 如果启用加速，则发布附属的poses
     if (mParams.acceleration) publishPublicPoses(true);
+    // 发布后重置请求
     mPublishPublicPosesRequested = false;
   }
 
   checkTimeout();
   // checkDisconnectedRobot();
 }
-
+// Runs the PGO (Pose Graph Optimization) agent once in synchronous mode
 void PGOAgentROS::runOnceAsynchronous() {
   if (mPublishAsynchronousRequested) {
     if (isLeader()) publishAnchor();
@@ -125,14 +127,21 @@ void PGOAgentROS::runOnceAsynchronous() {
     mPublishAsynchronousRequested = false;
   }
 }
-
+/**
+ * 同步模式下检查是否可以迭代优化 at every ROS spin
+ * 
+ * 
+ */ 
 void PGOAgentROS::runOnceSynchronous() {
+  // 检查是否不是异步
   CHECK(!mParams.asynchronous);
 
   // Perform an optimization step
+  // 接收到command消息：UPDATE 才为true，开始优化
   if (mSynchronousOptimizationRequested) {
 
     // Check if ready to perform iterate
+    // 验证所有邻居机器人的迭代次数是否满足要求
     bool ready = true;
     for (unsigned neighbor : mPoseGraph->activeNeighborIDs()) {
       int requiredIter = (int) mTeamIterRequired[neighbor];
@@ -175,6 +184,7 @@ void PGOAgentROS::runOnceSynchronous() {
       }
 
       // First robot publish anchor
+      // Anchor: 1st pose of 1st robot
       if (isLeader()) {
         publishAnchor();
       }
@@ -219,27 +229,45 @@ void PGOAgentROS::runOnceSynchronous() {
   }
 }
 
+// 重置PGOAgentROS类的成员变量和状态
 void PGOAgentROS::reset() {
+  // 调用基类PGOAgent的重置方法
   PGOAgent::reset();
+  
+  // 初始化请求的同步优化标志为false
   mSynchronousOptimizationRequested = false;
+  // 初始化请求尝试初始化标志为false
   mTryInitializeRequested = false;
+  // 初始化初始化步骤计数器为0
   mInitStepsDone = 0;
+  // 为每个机器人初始化迭代次数要求和接收计数器
   mTeamIterRequired.assign(mParams.numRobots, 0);
   mTeamIterReceived.assign(mParams.numRobots, 0);
+  // 初始化接收到团队共享闭环信息的标志
   mTeamReceivedSharedLoopClosures.assign(mParams.numRobots, false);
+  // 初始化接收到的总字节数计数器
   mTotalBytesReceived = 0;
+  // 清空团队状态消息
   mTeamStatusMsg.clear();
+  
+  // 检查并关闭迭代日志文件
   if (mIterationLog.is_open()) {
     mIterationLog.close();
   }
+  
+  // 如果需要完全重置，则执行额外的操作
   if (mParamsROS.completeReset) {
     ROS_WARN("Reset DPGO completely.");
     mPoseGraph = std::make_shared<PoseGraph>(mID, r, d);  // Reset pose graph
     mCachedPoses.reset();  // Reset stored trajectory estimate
     mCachedLoopClosureMarkers.reset();
   }
+  
+  // 重置机器人集群ID
   resetRobotClusterIDs();
+  // 记录最后重置时间
   mLastResetTime = ros::Time::now();
+  // 重置最后更新时间
   mLastUpdateTime.reset();
 }
 
@@ -584,22 +612,43 @@ void PGOAgentROS::publishInitializeCommand() {
   ROS_INFO("Robot %u published INITIALIZE command.", getID());
 }
 
+/**
+ * 发布活动机器人的命令消息
+ * 
+ * 本函数负责生成并发布一个命令消息，该消息指示哪些机器人是当前活动的
+ * 它主要执行以下操作：
+ * 1. 检查当前机器人是否为领导者，因为只有领导者才应该发布此类命令
+ * 2. 创建一个命令消息，并填充必要的信息，如消息头、发布者ID、集群ID和命令类型
+ * 3. 收集所有当前活动的机器人ID，并将它们添加到消息的活动机器人列表中
+ * 4. 通过ROS通信发布该命令消息
+ */
 void PGOAgentROS::publishActiveRobotsCommand() {
+  // 检查是否为领导者，因为只有领导者应该发布活动机器人命令
   if (!isLeader()) {
     ROS_ERROR("Only leader should publish active robots!");
     return;
   }
+  
+  // 初始化命令消息
   Command msg;
+  // 设置消息时间戳为当前时间
   msg.header.stamp = ros::Time::now();
+  // 设置消息发布者的ID为当前机器人的ID
   msg.publishing_robot = getID();
+  // 设置集群ID
   msg.cluster_id = getClusterID();
+  // 设置命令类型为设置活动机器人
   msg.command = Command::SET_ACTIVE_ROBOTS;
+  
+  // 遍历所有机器人，收集活动机器人的ID
   for (unsigned robot_id = 0; robot_id < mParams.numRobots; ++robot_id) {
+    // 如果机器人是活动的，则将其ID添加到活动机器人列表中
     if (isRobotActive(robot_id)) {
       msg.active_robots.push_back(robot_id);
     }
   }
-
+  
+  // 发布命令消息
   mCommandPublisher.publish(msg);
 }
 
@@ -658,18 +707,33 @@ void PGOAgentROS::publishIterate() {
     publishTrajectory(T);
   }
 }
-
+// Publish latest public poses
+/**
+ * 发布最新的公共位姿信息
+ * 
+ * 该函数负责向邻居机器人发布当前机器人的位姿信息它会根据是否为辅助位姿信息来选择不同的位姿字典，
+ * 并将这些位姿信息打包成PublicPoses消息发布出去
+ * 
+ * @param aux 布尔值，指示是否发布辅助位姿信息如果为true，表示发布辅助位姿；如果为false，表示发布正常位姿
+ */
 void PGOAgentROS::publishPublicPoses(bool aux) {
+  // 遍历邻居ID，
   for (unsigned neighbor : getNeighbors()) {
     PoseDict map;
     if (aux) {
+      // 如果是辅助位姿信息，尝试获取与邻居共享的辅助位姿字典 若没有初始化轨迹则return
+      // 测量数据中对应自身的“Y”中的ID-frame ID-pose
       if (!getAuxSharedPoseDictWithNeighbor(map, neighbor)) return;
     } else {
+      // 如果不是辅助位姿信息，尝试获取与邻居共享的正常位姿字典 若没有初始化轨迹则return
+      // 测量数据中对应自身的“X”中的ID-frame ID-pose
       if (!getSharedPoseDictWithNeighbor(map, neighbor)) return;
     }
+    // 如果共享的位姿字典为空，则跳过当前邻居
     if (map.empty())
       continue;
 
+    // 创建PublicPoses消息，并填充消息头信息
     PublicPoses msg;
     msg.robot_id = getID();
     msg.cluster_id = getClusterID();
@@ -678,13 +742,18 @@ void PGOAgentROS::publishPublicPoses(bool aux) {
     msg.iteration_number = iteration_number();
     msg.is_auxiliary = aux;
 
+    // 遍历共享的位姿字典，将位姿信息添加到消息中
     for (const auto &sharedPose : map) {
       const PoseID nID = sharedPose.first;
       const auto &matrix = sharedPose.second.getData();
+      // 确保当前处理的位姿ID与当前机器人的ID一致
       CHECK_EQ(nID.robot_id, getID());
+      // 将帧ID添加到消息的位姿ID中
       msg.pose_ids.push_back(nID.frame_id);
+      // 将位姿矩阵转换为消息格式，并添加到消息中
       msg.poses.push_back(MatrixToMsg(matrix));
     }
+    // 发布PublicPoses消息
     mPublicPosesPublisher.publish(msg);
   }
 }
@@ -1466,7 +1535,7 @@ void PGOAgentROS::initializeGlobalAnchor() {
   setGlobalAnchor(X.getData());
   ROS_INFO("Initialized global anchor.");
 }
-
+// Get the ID of the current cluster
 unsigned PGOAgentROS::getClusterID() const {
   return mClusterID;
 }
@@ -1513,6 +1582,7 @@ void PGOAgentROS::resetRobotClusterIDs() {
 }
 
 void PGOAgentROS::checkTimeout() {
+  // 只用于同步模式
   if (mParams.asynchronous) {
     return;
   }
@@ -1521,29 +1591,38 @@ void PGOAgentROS::checkTimeout() {
   // This usually happen when robots get disconnected 
   double elapsedSecond = (ros::Time::now() - mLastCommandTime).toSec();
   if (elapsedSecond > mParamsROS.timeoutThreshold) {
+    // 若轨迹初始化完成且迭代次数大于0
     if (mState == PGOAgentState::INITIALIZED && iteration_number() > 0) {
       ROS_WARN("Robot %u timeout during optimization: last command was %.1f sec ago.", 
                getID(), elapsedSecond);
+      // 如果是领导者机器人(ID=cluster_ID)
       if (isLeader()) {
+        // 若存在其他断开的机器人
         if (checkDisconnectedRobot()) {
+          // 重新发布集群中活跃机器人的指令
           publishActiveRobotsCommand();
           ros::Duration(3).sleep();
         }
         ROS_WARN("Number of active robots: %zu.", numActiveRobots());
         if (numActiveRobots() > 1) {
+          // 若活跃的机器人数大于1
           if (mParamsROS.enableRecovery) {
             // ROS_WARN("Attempt to resume optimization with %zu robots.", numActiveRobots());
+            // 若允许恢复，发布恢复指令
             publishRecoverCommand();
           } else {
             // ROS_WARN("Terminate with %zu robots.", numActiveRobots());
+            // 若不允许恢复，发布硬终止指令
             publishHardTerminateCommand();
           }
         } else {
           // ROS_WARN("Terminate... Not enough active robots.");
+          // 若活跃的机器人数=1即自己，发布硬终止指令
           publishHardTerminateCommand();
         }
       } else {
         if (!isRobotConnected(getClusterID())) {
+          // 若自己不是领导者机器人，但是与自己所在的集群中的领导者机器人断开连接
           ROS_WARN("Disconnected from current cluster... reset.");
           reset();
         }
@@ -1574,15 +1653,31 @@ void PGOAgentROS::checkTimeout() {
   }
 }
 
+/**
+ * 检查并处理断开连接的机器人
+ * 
+ * 此函数遍历所有机器人，识别出当前活跃但已断开连接的机器人，并记录断开连接的状态
+ * 如果发现机器人断开连接，会打印警告信息并将其设为非活跃状态
+ * 
+ * @return bool 表示是否有机器人在检查期间断开连接
+ */
 bool PGOAgentROS::checkDisconnectedRobot() {
+  // 初始化一个标志变量，用于指示是否有机器人断开连接
   bool robot_disconnected = false;
+  
+  // 遍历所有机器人（除开自己，因为自己一定能连接上）
   for (unsigned robot_id = 0; robot_id < mParams.numRobots; ++robot_id) {
+    // 检查其他机器人是否活跃且已断开连接
     if (isRobotActive(robot_id) && !isRobotConnected(robot_id)) {
       ROS_WARN("Active robot %u is disconnected.", robot_id);
+      // 断开连接后将该机器人的活跃状态设置为false，以防止进一步的操作
       setRobotActive(robot_id, false);
+      // 设置标志变量为true，表示有机器人断开连接
       robot_disconnected = true;
     }
   }
+  
+  // 返回是否有机器人断开连接的状态
   return robot_disconnected;
 }
 
