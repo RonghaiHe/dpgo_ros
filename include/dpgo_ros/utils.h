@@ -15,9 +15,9 @@
 #include <dpgo_ros/Status.h>
 #include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <sensor_msgs/PointCloud.h>
 #include <nav_msgs/Path.h>
 #include <pose_graph_tools_msgs/PoseGraph.h>
+#include <sensor_msgs/PointCloud.h>
 #include <tf/tf.h>
 
 #include <cassert>
@@ -32,15 +32,13 @@ namespace dpgo_ros {
 /**
 Serialize a Matrix object into a vector of Float64 messages, in row-major format
 */
-std::vector<double> serializeMatrix(size_t rows, size_t cols,
-                                    const Matrix &Mat);
+std::vector<double> serializeMatrix(size_t rows, size_t cols, const Matrix &Mat);
 
 /**
 Deserialize a vector of Float64 messages into a Matrix object, using row-major
 format
 */
-Matrix deserializeMatrix(size_t rows, size_t cols,
-                         const std::vector<double> &v);
+Matrix deserializeMatrix(size_t rows, size_t cols, const std::vector<double> &v);
 
 /**
 Write a matrix to ROS message
@@ -101,7 +99,8 @@ Convert an aggregate matrix T \in (SO(d) \times Rd)^n to a ROS Path message
 nav_msgs::Path TrajectoryToPath(unsigned d, unsigned n, const Matrix &T);
 
 /**
- * @brief Convert an an aggregate matrix T \in (SO(d) \times Rd)^n to a point cloud message. This message does not contain rotation estimates.
+ * @brief Convert an an aggregate matrix T \in (SO(d) \times Rd)^n to a point cloud
+ * message. This message does not contain rotation estimates.
  * @param d
  * @param n
  * @param T
@@ -110,14 +109,18 @@ nav_msgs::Path TrajectoryToPath(unsigned d, unsigned n, const Matrix &T);
 sensor_msgs::PointCloud TrajectoryToPointCloud(unsigned d, unsigned n, const Matrix &T);
 
 /**
- * @brief Convert an aggregate matrix T \in (SO(d) \times Rd)^n to a PoseGraph message. Currently only populates the nodes.
+ * @brief Convert an aggregate matrix T \in (SO(d) \times Rd)^n to a PoseGraph message.
+ * Currently only populates the nodes.
  * @param robotID
  * @param d
  * @param n
  * @param T
  * @return
  */
-pose_graph_tools_msgs::PoseGraph TrajectoryToPoseGraphMsg(unsigned robotID, unsigned d, unsigned n, const Matrix &T);
+pose_graph_tools_msgs::PoseGraph TrajectoryToPoseGraphMsg(unsigned robotID,
+                                                          unsigned d,
+                                                          unsigned n,
+                                                          const Matrix &T);
 
 /**
 Compute the number of bytes of a PublicPoses message.

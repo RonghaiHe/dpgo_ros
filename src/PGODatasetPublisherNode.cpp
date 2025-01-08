@@ -28,7 +28,7 @@ class DatasetPublisher {
     }
 
     // Load robot names
-    for (size_t id = 0; id < (unsigned) num_robots; id++) {
+    for (size_t id = 0; id < (unsigned)num_robots; id++) {
       std::string robot_name = "kimera" + std::to_string(id);
       ros::param::get("~robot" + std::to_string(id) + "_name", robot_name);
       robotNames[id] = robot_name;
@@ -43,8 +43,9 @@ class DatasetPublisher {
       loadFromMeasurements();
     }
 
-    for (size_t id = 0; id < (unsigned) num_robots; ++id) {
-      string service_name = "/" + robotNames.at(id) + "/distributed_loop_closure/request_pose_graph";
+    for (size_t id = 0; id < (unsigned)num_robots; ++id) {
+      string service_name =
+          "/" + robotNames.at(id) + "/distributed_loop_closure/request_pose_graph";
       ros::ServiceServer server = nh.advertiseService(
           service_name, &DatasetPublisher::queryPoseGraphCallback, this);
       poseGraphServers.push_back(server);
@@ -59,9 +60,8 @@ class DatasetPublisher {
   vector<pose_graph_tools_msgs::PoseGraph> poseGraphs;
   vector<ros::ServiceServer> poseGraphServers;
   std::map<unsigned, std::string> robotNames;
-  bool queryPoseGraphCallback(
-      pose_graph_tools_msgs::PoseGraphQueryRequest &request,
-      pose_graph_tools_msgs::PoseGraphQueryResponse &response) {
+  bool queryPoseGraphCallback(pose_graph_tools_msgs::PoseGraphQueryRequest &request,
+                              pose_graph_tools_msgs::PoseGraphQueryResponse &response) {
     if (request.robot_id >= poseGraphs.size()) {
       ROS_ERROR("DatasetPublisher: requested robot does not exist!");
       return false;
@@ -83,20 +83,17 @@ class DatasetPublisher {
     unsigned int n = num_poses;
     unsigned int num_poses_per_robot = n / num_robots;
     if (num_poses_per_robot <= 0) {
-      ROS_ERROR_STREAM(
-          "Number of robots must be smaller than total number of poses!");
+      ROS_ERROR_STREAM("Number of robots must be smaller than total number of poses!");
     }
 
-    ROS_INFO_STREAM(
-        "Creating mapping from global pose index to local pose index...");
+    ROS_INFO_STREAM("Creating mapping from global pose index to local pose index...");
     map<unsigned, PoseID> PoseMap;
-    for (unsigned robot = 0; robot < (unsigned) num_robots; ++robot) {
+    for (unsigned robot = 0; robot < (unsigned)num_robots; ++robot) {
       unsigned startIdx = robot * num_poses_per_robot;
       unsigned endIdx = (robot + 1) * num_poses_per_robot;  // non-inclusive
-      if (robot == (unsigned) num_robots - 1) endIdx = n;
+      if (robot == (unsigned)num_robots - 1) endIdx = n;
       for (unsigned idx = startIdx; idx < endIdx; ++idx) {
-        unsigned localIdx =
-            idx - startIdx;  // this is the local ID of this pose
+        unsigned localIdx = idx - startIdx;  // this is the local ID of this pose
         PoseID pose(robot, localIdx);
         PoseMap[idx] = pose;
       }
@@ -115,8 +112,8 @@ class DatasetPublisher {
       unsigned dstRobot = dst.robot_id;
       unsigned dstIdx = dst.frame_id;
 
-      RelativeSEMeasurement m(srcRobot, dstRobot, srcIdx, dstIdx, mIn.R, mIn.t,
-                              mIn.kappa, mIn.tau);
+      RelativeSEMeasurement m(
+          srcRobot, dstRobot, srcIdx, dstIdx, mIn.R, mIn.t, mIn.kappa, mIn.tau);
 
       if (srcRobot == dstRobot) {
         // private measurement
@@ -134,7 +131,7 @@ class DatasetPublisher {
       }
     }
 
-    for (size_t robot = 0; robot < (unsigned) num_robots; ++robot) {
+    for (size_t robot = 0; robot < (unsigned)num_robots; ++robot) {
       pose_graph_tools_msgs::PoseGraph pose_graph;
       // Add odometry factors
       for (size_t k = 0; k < odometry[robot].size(); ++k) {
@@ -159,14 +156,15 @@ class DatasetPublisher {
   }
 
   void loadFromMeasurements() {
-    for (size_t robot_id = 0; robot_id < (unsigned) num_robots; ++robot_id) {
+    for (size_t robot_id = 0; robot_id < (unsigned)num_robots; ++robot_id) {
       pose_graph_tools_msgs::PoseGraph pose_graph;
       std::string measurement_file;
-      if (!ros::param::get("~robot" + std::to_string(robot_id) + "_measurements", measurement_file)) {
+      if (!ros::param::get("~robot" + std::to_string(robot_id) + "_measurements",
+                           measurement_file)) {
         ROS_ERROR("No measurement file specified for robot %zu!", robot_id);
       }
-      std::vector<RelativeSEMeasurement> measurements = PGOLogger::loadMeasurements(measurement_file,
-                                                                                    false);
+      std::vector<RelativeSEMeasurement> measurements =
+          PGOLogger::loadMeasurements(measurement_file, false);
       for (const auto &m : measurements) {
         pose_graph_tools_msgs::PoseGraphEdge edge =
             dpgo_ros::RelativeMeasurementToMsg(m);

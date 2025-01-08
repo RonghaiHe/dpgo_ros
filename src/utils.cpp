@@ -9,18 +9,18 @@
 #include <DPGO/DPGO_utils.h>
 #include <dpgo_ros/utils.h>
 #include <tf/tf.h>
-#include <random>
+
 #include <map>
+#include <random>
 
 using namespace DPGO;
 using pose_graph_tools_msgs::PoseGraphEdge;
 
 namespace dpgo_ros {
 
-std::vector<double> serializeMatrix(size_t rows, size_t cols,
-                                    const Matrix &Mat) {
-  assert((size_t) Mat.rows() == rows);
-  assert((size_t) Mat.cols() == cols);
+std::vector<double> serializeMatrix(size_t rows, size_t cols, const Matrix &Mat) {
+  assert((size_t)Mat.rows() == rows);
+  assert((size_t)Mat.cols() == cols);
 
   std::vector<double> v;
 
@@ -34,8 +34,7 @@ std::vector<double> serializeMatrix(size_t rows, size_t cols,
   return v;
 }
 
-Matrix deserializeMatrix(size_t rows, size_t cols,
-                         const std::vector<double> &v) {
+Matrix deserializeMatrix(size_t rows, size_t cols, const std::vector<double> &v) {
   assert(v.size() == rows * cols);
   Matrix Mat = Matrix::Zero(rows, cols);
   for (size_t row = 0; row < rows; ++row) {
@@ -66,9 +65,8 @@ Matrix RotationFromPoseMsg(const geometry_msgs::Pose &msg) {
   tf::quaternionMsgToTF(msg.orientation, quat);
   tf::Matrix3x3 rotation(quat);
   Matrix R(3, 3);
-  R << rotation[0][0], rotation[0][1], rotation[0][2],
-       rotation[1][0], rotation[1][1], rotation[1][2],
-       rotation[2][0], rotation[2][1], rotation[2][2];
+  R << rotation[0][0], rotation[0][1], rotation[0][2], rotation[1][0], rotation[1][1],
+      rotation[1][2], rotation[2][0], rotation[2][1], rotation[2][2];
 
   return R;
 }
@@ -85,9 +83,8 @@ geometry_msgs::Quaternion RotationToQuaternionMsg(const Matrix &R) {
   assert(R.rows() == 3);
   assert(R.cols() == 3);
 
-  tf::Matrix3x3 rotation(R(0, 0), R(0, 1), R(0, 2),
-                         R(1, 0), R(1, 1), R(1, 2),
-                         R(2, 0), R(2, 1), R(2, 2));
+  tf::Matrix3x3 rotation(
+      R(0, 0), R(0, 1), R(0, 2), R(1, 0), R(1, 1), R(1, 2), R(2, 0), R(2, 1), R(2, 2));
   tf::Quaternion quat;
   rotation.getRotation(quat);
   geometry_msgs::Quaternion quat_msg;
@@ -151,7 +148,9 @@ RelativeSEMeasurement RelativeMeasurementFromMsg(const PoseGraphEdge &msg) {
   return m;
 }
 
-geometry_msgs::PoseArray TrajectoryToPoseArray(unsigned d, unsigned n, const Matrix &T) {
+geometry_msgs::PoseArray TrajectoryToPoseArray(unsigned d,
+                                               unsigned n,
+                                               const Matrix &T) {
   assert(d == 3);
   assert(T.rows() == d);
   assert(T.cols() == (d + 1) * n);
@@ -202,7 +201,9 @@ nav_msgs::Path TrajectoryToPath(unsigned d, unsigned n, const Matrix &T) {
   return msg;
 }
 
-sensor_msgs::PointCloud TrajectoryToPointCloud(unsigned d, unsigned n, const Matrix &T) {
+sensor_msgs::PointCloud TrajectoryToPointCloud(unsigned d,
+                                               unsigned n,
+                                               const Matrix &T) {
   assert(d == 3);
   assert(T.rows() == d);
   assert(T.cols() == (d + 1) * n);
@@ -220,7 +221,10 @@ sensor_msgs::PointCloud TrajectoryToPointCloud(unsigned d, unsigned n, const Mat
   return msg;
 }
 
-pose_graph_tools_msgs::PoseGraph TrajectoryToPoseGraphMsg(unsigned robotID, unsigned d, unsigned n, const Matrix &T) {
+pose_graph_tools_msgs::PoseGraph TrajectoryToPoseGraphMsg(unsigned robotID,
+                                                          unsigned d,
+                                                          unsigned n,
+                                                          const Matrix &T) {
   assert(d == 3);
   assert(T.rows() == d);
   assert(T.cols() == (d + 1) * n);
@@ -283,8 +287,7 @@ PGOAgentStatus statusFromMsg(const Status &msg) {
 void randomSleep(double min_sec, double max_sec) {
   CHECK(min_sec < max_sec);
   CHECK(min_sec > 0);
-  if (max_sec < 1e-3)
-    return;
+  if (max_sec < 1e-3) return;
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_real_distribution<double> distribution(min_sec, max_sec);

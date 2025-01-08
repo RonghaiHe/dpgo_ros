@@ -32,12 +32,11 @@ TEST(UtilsTest, PoseGraphEdge) {
   size_t p2 = 3;
   double kappa = 1.0;
   double tau = 1.0;
-  DPGO::Matrix R(3,3);
-  R << -0.2727695, -0.4248134,  0.8632094,
-       -0.5148591,  0.8223981,  0.2420361,
-       -0.8127219, -0.3784111, -0.4430441;
+  DPGO::Matrix R(3, 3);
+  R << -0.2727695, -0.4248134, 0.8632094, -0.5148591, 0.8223981, 0.2420361, -0.8127219,
+      -0.3784111, -0.4430441;
 
-  DPGO::Matrix t(3,1);
+  DPGO::Matrix t(3, 1);
   t << -1.5, 2.1, 3.9;
 
   DPGO::RelativeSEMeasurement m(r1, r2, p1, p2, R, t, kappa, tau);
@@ -48,8 +47,8 @@ TEST(UtilsTest, PoseGraphEdge) {
   ASSERT_EQ(mOut.r2, r2);
   ASSERT_EQ(mOut.p1, p1);
   ASSERT_EQ(mOut.p2, p2);
-  ASSERT_LE((R-mOut.R).norm(), 1e-6);
-  ASSERT_LE((t-mOut.t).norm(), 1e-6);
+  ASSERT_LE((R - mOut.R).norm(), 1e-6);
+  ASSERT_LE((t - mOut.t).norm(), 1e-6);
 }
 
 TEST(UtilsTest, StatusMsg) {

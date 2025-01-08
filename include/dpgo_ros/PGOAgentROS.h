@@ -11,15 +11,15 @@
 #include <DPGO/PGOAgent.h>
 #include <dpgo_ros/Command.h>
 #include <dpgo_ros/PublicPoses.h>
+#include <dpgo_ros/QueryLiftingMatrix.h>
 #include <dpgo_ros/RelativeMeasurementList.h>
 #include <dpgo_ros/RelativeMeasurementWeights.h>
-#include <dpgo_ros/QueryLiftingMatrix.h>
 #include <dpgo_ros/Status.h>
 #include <pose_graph_tools_msgs/PoseGraph.h>
-#include <visualization_msgs/Marker.h>
-#include <std_msgs/UInt16MultiArray.h>
 #include <ros/console.h>
 #include <ros/ros.h>
+#include <std_msgs/UInt16MultiArray.h>
+#include <visualization_msgs/Marker.h>
 
 using namespace DPGO;
 
@@ -33,7 +33,7 @@ typedef std::vector<ros::Subscriber> SubscriberVector;
 class PGOAgentROSParameters : public PGOAgentParameters {
  public:
   enum class UpdateRule {
-    Uniform, // Uniform sampling 
+    Uniform,    // Uniform sampling
     RoundRobin  // Round robin
   };
 
@@ -85,21 +85,23 @@ class PGOAgentROSParameters : public PGOAgentParameters {
         interUpdateSleepTime(0),
         timeoutThreshold(15) {}
 
-  inline friend std::ostream &operator<<(
-      std::ostream &os, const PGOAgentROSParameters &params) {
+  inline friend std::ostream &operator<<(std::ostream &os,
+                                         const PGOAgentROSParameters &params) {
     // First print base class
-    os << (const PGOAgentParameters &) params;
+    os << (const PGOAgentParameters &)params;
     // Then print additional options defined in the derived class
     os << "PGOAgentROS parameters: " << std::endl;
-    os << "Update rule: " << updateRuleToString(params.updateRule) << std::endl; 
+    os << "Update rule: " << updateRuleToString(params.updateRule) << std::endl;
     os << "Publish iterate: " << params.publishIterate << std::endl;
     os << "Visualize loop closures: " << params.visualizeLoopClosures << std::endl;
     os << "Complete reset: " << params.completeReset << std::endl;
     os << "Enable recovery: " << params.enableRecovery << std::endl;
     os << "Synchronize measurements: " << params.synchronizeMeasurements << std::endl;
-    os << "Maximum distributed initialization attempts: " << params.maxDistributedInitSteps << std::endl;
+    os << "Maximum distributed initialization attempts: "
+       << params.maxDistributedInitSteps << std::endl;
     os << "Maximum delayed iterations: " << params.maxDelayedIterations << std::endl;
-    os << "Measurement weight convergence threshold: " << params.weightConvergenceThreshold << std::endl;
+    os << "Measurement weight convergence threshold: "
+       << params.weightConvergenceThreshold << std::endl;
     os << "Inter update sleep time: " << params.interUpdateSleepTime << std::endl;
     os << "Timeout threshold: " << params.timeoutThreshold << std::endl;
     return os;
@@ -120,7 +122,8 @@ class PGOAgentROSParameters : public PGOAgentParameters {
 
 class PGOAgentROS : public PGOAgent {
  public:
-  PGOAgentROS(const ros::NodeHandle &nh_, unsigned ID,
+  PGOAgentROS(const ros::NodeHandle &nh_,
+              unsigned ID,
               const PGOAgentROSParameters &params);
 
   ~PGOAgentROS() = default;
@@ -174,9 +177,9 @@ class PGOAgentROS : public PGOAgent {
   std::vector<unsigned> mTeamIterReceived;
   std::vector<unsigned> mTeamIterRequired;
   std::vector<bool> mTeamReceivedSharedLoopClosures;
-  
-  // Store if other robots are currently connected 
-  std::vector<bool> mTeamConnected;  
+
+  // Store if other robots are currently connected
+  std::vector<bool> mTeamConnected;
 
   // Store the current cluster each robot belongs to
   std::vector<unsigned> mTeamClusterID;
@@ -185,8 +188,8 @@ class PGOAgentROS : public PGOAgent {
   std::optional<PoseArray> mCachedPoses;
   std::optional<visualization_msgs::Marker> mCachedLoopClosureMarkers;
 
-  // Store the latest SE(d) poses from neighbors in the global frame 
-  std::map<PoseID, Pose, ComparePoseID> mCachedNeighborPoses; 
+  // Store the latest SE(d) poses from neighbors in the global frame
+  std::map<PoseID, Pose, ComparePoseID> mCachedNeighborPoses;
 
   // Store the latest measurement weights with neighbors
   std::unordered_map<EdgeID, double, HashEdgeID> mCachedEdgeWeights;
@@ -342,10 +345,11 @@ class PGOAgentROS : public PGOAgent {
   ros::Publisher mPublicPosesPublisher;
   ros::Publisher mPublicMeasurementsPublisher;
   ros::Publisher mMeasurementWeightsPublisher;
-  ros::Publisher mPoseArrayPublisher;    // Publish optimized trajectory
-  ros::Publisher mPathPublisher;         // Publish optimized trajectory
-  ros::Publisher mPoseGraphPublisher;    // Publish optimized pose graph
-  ros::Publisher mLoopClosureMarkerPublisher;  // Publish loop closures for visualization
+  ros::Publisher mPoseArrayPublisher;  // Publish optimized trajectory
+  ros::Publisher mPathPublisher;       // Publish optimized trajectory
+  ros::Publisher mPoseGraphPublisher;  // Publish optimized pose graph
+  ros::Publisher
+      mLoopClosureMarkerPublisher;  // Publish loop closures for visualization
 
   // ROS subscriber
   SubscriberVector mLiftingMatrixSubscriber;
