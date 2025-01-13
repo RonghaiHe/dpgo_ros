@@ -284,16 +284,4 @@ PGOAgentStatus statusFromMsg(const Status &msg) {
   return status;
 }
 
-void randomSleep(double min_sec, double max_sec) {
-  CHECK(min_sec < max_sec);
-  CHECK(min_sec > 0);
-  if (max_sec < 1e-3) return;
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::uniform_real_distribution<double> distribution(min_sec, max_sec);
-  double sleep_time = distribution(gen);
-  ROS_INFO("Sleep %f sec...", sleep_time);
-  ros::Duration(sleep_time).sleep();
-}
-
 }  // namespace dpgo_ros

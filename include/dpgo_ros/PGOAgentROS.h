@@ -320,6 +320,11 @@ class PGOAgentROS : public PGOAgent {
   // Initialize global anchor using stored information
   void initializeGlobalAnchor();
 
+  /**
+   * @brief Sleep for a time randomly distributed in [min_sec, max_sec]
+   */
+  void randomSleep(double min_sec, double max_sec);
+
   // Log iteration
   bool createIterationLog(const std::string &filename);
   bool logIteration();

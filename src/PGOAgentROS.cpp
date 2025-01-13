@@ -44,6 +44,10 @@ PGOAgentROS::PGOAgentROS(const ros::NodeHandle &nh_,
     mRobotNames[id] = robot_name;
   }
 
+  // Add random seed parameter, default to 42
+  ros::param::get("~random_seed", mSeed);
+  mRng.seed(mSeed);
+
   // ROS subscriber
   for (size_t robot_id = 0; robot_id < mParams.numRobots; ++robot_id) {
     std::string topic_prefix = "/" + mRobotNames.at(robot_id) + "/dpgo_ros_node/";
@@ -483,9 +487,9 @@ void PGOAgentROS::publishUpdateCommand() {
       size_t num_active_robots = active_robots.size();
       std::vector<double> weights(num_active_robots, 1.0);
       std::discrete_distribution<int> distribution(weights.begin(), weights.end());
-      std::random_device rd;
-      std::mt19937 gen(rd());
-      selected_robot = active_robots[distribution(gen)];
+      // std::random_device rd;
+      // std::mt19937 gen(rd());
+      selected_robot = active_robots[distribution(mRng)];
       break;
     }
     case PGOAgentROSParameters::UpdateRule::RoundRobin: {
@@ -1633,6 +1637,18 @@ bool PGOAgentROS::checkDisconnectedRobot() {
     }
   }
   return robot_disconnected;
+}
+
+void PGOAgentROS::randomSleep(double min_sec, double max_sec) {
+  CHECK(min_sec < max_sec);
+  CHECK(min_sec > 0);
+  if (max_sec < 1e-3) return;
+  // std::random_device rd;
+  // std::mt19937 gen(rd());
+  std::uniform_real_distribution<double> distribution(min_sec, max_sec);
+  double sleep_time = distribution(mRng);
+  ROS_INFO("Sleep %f sec...", sleep_time);
+  ros::Duration(sleep_time).sleep();
 }
 
 }  // namespace dpgo_ros

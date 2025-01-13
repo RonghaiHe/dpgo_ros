@@ -141,9 +141,4 @@ Status statusToMsg(const PGOAgentStatus &status);
  */
 PGOAgentStatus statusFromMsg(const Status &msg);
 
-/**
- * @brief Sleep for a time randomly distributed in [min_sec, max_sec]
- */
-void randomSleep(double min_sec, double max_sec);
-
 }  // namespace dpgo_ros
