@@ -15,6 +15,7 @@
 #include <dpgo_ros/RelativeMeasurementList.h>
 #include <dpgo_ros/RelativeMeasurementWeights.h>
 #include <dpgo_ros/Status.h>
+#include <mesh_msgs/TriangleMeshStamped.h>
 #include <pose_graph_tools_msgs/PoseGraph.h>
 #include <ros/console.h>
 #include <ros/ros.h>
@@ -188,6 +189,9 @@ class PGOAgentROS : public PGOAgent {
   std::optional<PoseArray> mCachedPoses;
   std::optional<visualization_msgs::Marker> mCachedLoopClosureMarkers;
 
+  std::optional<mesh_msgs::TriangleMeshStamped> mCachedMesh;
+  std::optional<mesh_msgs::TriangleMeshStamped> mCachedGlobalMesh;
+
   // Store the latest SE(d) poses from neighbors in the global frame
   std::map<PoseID, Pose, ComparePoseID> mCachedNeighborPoses;
 
@@ -292,8 +296,11 @@ class PGOAgentROS : public PGOAgent {
   void publishTrajectory(const PoseArray &T);
   void publishOptimizedTrajectory();
 
-  // Publish trajectory estimates from the latest iteration in distributed optimization.
-  // This function is mostly for visualization and debugging purpose.
+  void publishGlobalMesh();
+  void storeGlobalMesh();
+
+  // Publish trajectory estimates from the latest iteration in distributed
+  // optimization. This function is mostly for visualization and debugging purpose.
   void publishIterate();
 
   // Publish latest public poses
@@ -339,6 +346,8 @@ class PGOAgentROS : public PGOAgent {
   void publicPosesCallback(const PublicPosesConstPtr &msg);
   void publicMeasurementsCallback(const RelativeMeasurementListConstPtr &msg);
   void measurementWeightsCallback(const RelativeMeasurementWeightsConstPtr &msg);
+  // void globalPathRealTimeCallback(const nav_msgs::Path::ConstPtr &msg);
+  void localMeshCallback(const mesh_msgs::TriangleMeshStamped::ConstPtr &msg);
   void timerCallback(const ros::TimerEvent &event);
   void visualizationTimerCallback(const ros::TimerEvent &event);
 
@@ -355,6 +364,9 @@ class PGOAgentROS : public PGOAgent {
   ros::Publisher mPoseGraphPublisher;  // Publish optimized pose graph
   ros::Publisher
       mLoopClosureMarkerPublisher;  // Publish loop closures for visualization
+  ros::Publisher mGlobalMeshPublisher;
+  mutex mMeshMutex;
+  mutex mGlobalMeshMutex;
 
   // ROS subscriber
   SubscriberVector mLiftingMatrixSubscriber;
@@ -365,6 +377,7 @@ class PGOAgentROS : public PGOAgent {
   SubscriberVector mSharedLoopClosureSubscriber;
   SubscriberVector mMeasurementWeightsSubscriber;
   ros::Subscriber mConnectivitySubscriber;
+  ros::Subscriber mLocalMeshSubscriber;
 
   // ROS timer
   ros::Timer timer;

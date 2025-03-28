@@ -74,7 +74,11 @@ PGOAgentROS::PGOAgentROS(const ros::NodeHandle &nh_,
                    5,
                    &PGOAgentROS::connectivityCallback,
                    this);
-
+  mLocalMeshSubscriber =
+      nh.subscribe("/" + mRobotNames.at(mID) + "/kimera_pgmo/optimized_mesh",
+                   100,
+                   &PGOAgentROS::localMeshCallback,
+                   this);
   for (size_t robot_id = 0; robot_id < getID(); ++robot_id) {
     std::string topic_prefix = "/" + mRobotNames.at(robot_id) + "/dpgo_ros_node/";
     mMeasurementWeightsSubscriber.push_back(
@@ -101,10 +105,14 @@ PGOAgentROS::PGOAgentROS(const ros::NodeHandle &nh_,
   mLoopClosureMarkerPublisher =
       nh.advertise<visualization_msgs::Marker>("loop_closures", 1);
 
+  // mGlobalPathRealTimePublisher = nh.advertise<nav_msgs::Path>("global_path", 1);
+  mGlobalMeshPublisher =
+      nh.advertise<mesh_msgs::TriangleMeshStamped>("global_mesh", 1, false);
+
   // ROS timer
   timer = nh.createTimer(ros::Duration(3.0), &PGOAgentROS::timerCallback, this);
   mVisualizationTimer = nh.createTimer(
-      ros::Duration(30.0), &PGOAgentROS::visualizationTimerCallback, this);
+      ros::Duration(10.0), &PGOAgentROS::visualizationTimerCallback, this);
 
   // Initially, assume each robot is in a separate cluster
   resetRobotClusterIDs();
@@ -673,6 +681,100 @@ void PGOAgentROS::publishTrajectory(const PoseArray &T) {
   mPoseGraphPublisher.publish(pose_graph);
 }
 
+void PGOAgentROS::localMeshCallback(
+    const mesh_msgs::TriangleMeshStamped::ConstPtr &msg) {
+  lock_guard<mutex> lock(mMeshMutex);
+  if (mCachedMesh.has_value()) mCachedMesh.reset();
+  mCachedMesh.emplace(*msg);
+}
+
+void PGOAgentROS::publishGlobalMesh() {
+  lock_guard<mutex> lock(mGlobalMeshMutex);
+  if (mCachedGlobalMesh.has_value())
+    mGlobalMeshPublisher.publish(mCachedGlobalMesh.value());
+}
+
+void PGOAgentROS::storeGlobalMesh() {
+  if (mState != PGOAgentState::INITIALIZED || !T_world_robot_) return;
+
+  // TODO Use ICP with X and TLocalInit to compute the tf
+
+  mesh_msgs::TriangleMeshStamped globalMesh;
+  Eigen::Matrix3d Ra;
+  Eigen::Vector3d ta;
+  Pose Xa = T_world_robot_.value();
+  Ra = projectToRotationGroup(Xa.rotation().block(0, 0, 3, 3));
+  ROS_INFO("Rot of mesh before tf: %f, %f, %f, %f, %f, %f, %f, %f, %f",
+           Ra(0, 0),
+           Ra(0, 1),
+           Ra(0, 2),
+           Ra(1, 0),
+           Ra(1, 1),
+           Ra(1, 2),
+           Ra(2, 0),
+           Ra(2, 1),
+           Ra(2, 2));
+
+  // transform to euler angles and just use yaw angle for now
+  Eigen::Vector3d euler = Ra.eulerAngles(2, 1, 0);
+  Ra = Eigen::AngleAxisd(euler(2), Eigen::Vector3d::UnitZ())
+           .toRotationMatrix()
+           .transpose();
+
+  // Ra = Eigen::Matrix3d::Identity();
+  ta = Xa.translation().block(0, 0, 3, 1);
+  ta(2) = 0;
+  {
+    lock_guard<mutex> lock(mMeshMutex);
+    if (!mCachedMesh.has_value()) return;
+    globalMesh = mCachedMesh.value();
+    // globalMesh = non_const_mesh;
+  }
+  ROS_INFO("Rot of mesh: %f, %f, %f, %f, %f, %f, %f, %f, %f",
+           Ra(0, 0),
+           Ra(0, 1),
+           Ra(0, 2),
+           Ra(1, 0),
+           Ra(1, 1),
+           Ra(1, 2),
+           Ra(2, 0),
+           Ra(2, 1),
+           Ra(2, 2));
+  ROS_INFO("Trans of mesh: %f, %f, %f", ta(0), ta(1), ta(2));
+  globalMesh.header.frame_id = "world";
+  for (auto &vertex : globalMesh.mesh.vertices) {
+    Eigen::Vector3d ti(vertex.x, vertex.y, vertex.z);
+
+    Eigen::Vector3d tg = Ra * ti + ta;
+    vertex.x = tg(0);
+    vertex.y = tg(1);
+    vertex.z = tg(2);
+  }
+  for (auto &normal : globalMesh.mesh.vertex_normals) {
+    Eigen::Vector3d ni(normal.x, normal.y, normal.z);
+
+    Eigen::Vector3d ng = Ra * ni;
+    ng.normalize();
+    normal.x = ng(0);
+    normal.y = ng(1);
+    normal.z = ng(2);
+  }
+  for (auto &coor : globalMesh.mesh.vertex_texture_coords) {
+    Eigen::Vector3d ti(coor.x, coor.y, coor.z);
+
+    Eigen::Vector3d t = Ra * ti + ta;
+    coor.x = t(0);
+    coor.y = t(1);
+    coor.z = t(2);
+  }
+  {
+    lock_guard<mutex> lock(mGlobalMeshMutex);
+    if (mCachedGlobalMesh.has_value()) mCachedGlobalMesh.reset();
+    mCachedGlobalMesh.emplace(globalMesh);
+  }
+  // mGlobalMeshPublisher.publish(mCachedGlobalMesh);
+}
+
 void PGOAgentROS::publishOptimizedTrajectory() {
   if (!isRobotActive(getID())) return;
   if (!mCachedPoses.has_value()) return;
@@ -1109,6 +1211,7 @@ void PGOAgentROS::commandCallback(const CommandConstPtr &msg) {
       // Store and publish optimized trajectory in global frame
       storeOptimizedTrajectory();
       storeLoopClosureMarkers();
+      storeGlobalMesh();
       storeActiveNeighborPoses();
       storeActiveEdgeWeights();
 
@@ -1408,6 +1511,64 @@ void PGOAgentROS::measurementWeightsCallback(
   }
 }
 
+// void PGOAgentROS::globalPathRealTimeCallback(const nav_msgs::Path::ConstPtr &msg) {
+//   nav_msgs::Path global_msg;
+//   global_msg.header.frame_id = "/world";
+//   global_msg.header.stamp = msg->header.stamp;
+
+//   // if (mState != PGOAgentState::INITIALIZED || !globalAnchor) {
+//   if (!globalAnchor) {
+//     ROS_INFO("Publishing global path without transformation");
+//     for (const auto &pose_stamped : msg->poses) {
+//       geometry_msgs::PoseStamped poseStamped;
+//       poseStamped.header.frame_id = "/world";
+//       poseStamped.header.stamp = pose_stamped.header.stamp;
+//       poseStamped.pose = pose_stamped.pose;
+//       global_msg.poses.push_back(poseStamped);
+//     }
+//   } else {
+//     // ROS_INFO("Publishing global path with transformation");
+
+//     auto Xa = globalAnchor.value();
+//     CHECK(Xa.r() == relaxation_rank());
+//     CHECK(Xa.d() == dimension());
+//     Eigen::Matrix3d Ra = Xa.rotation().block(0, 0, 3, 3).transpose();
+//     Eigen::Quaterniond qa(Ra);
+//     Eigen::Vector3d ta = Xa.translation().block(0, 0, 3, 1);
+
+//     for (const auto &pose_stamped : msg->poses) {
+//       const auto &pose_msg = pose_stamped.pose;
+//       geometry_msgs::Pose pose;
+//       tf::Quaternion qi_tf;
+//       tf::quaternionMsgToTF(pose_msg.orientation, qi_tf);
+//       Eigen::Quaterniond qi(qi_tf.w(), qi_tf.x(), qi_tf.y(), qi_tf.z());
+//       Eigen::Quaterniond global_qi_eigen = qa * qi;
+//       if (fabs(global_qi_eigen.squaredNorm() - 1) > tf::QUATERNION_TOLERANCE) {
+//         global_qi_eigen.normalize();
+//       }
+//       tf::Quaternion global_qi(global_qi_eigen.x(),
+//                                global_qi_eigen.y(),
+//                                global_qi_eigen.z(),
+//                                global_qi_eigen.w());
+//       tf::quaternionTFToMsg(global_qi, pose.orientation);
+
+//       Eigen::Vector3d ti(pose_msg.position.x, pose_msg.position.y,
+//       pose_msg.position.z); Eigen::Vector3d global_ti_eigen = Ra * (ti - ta);
+
+//       tf::Vector3 global_ti(global_ti_eigen(0), global_ti_eigen(1),
+//       global_ti_eigen(2)); tf::pointTFToMsg(global_ti, pose.position);
+
+//       geometry_msgs::PoseStamped poseStamped;
+//       poseStamped.header.frame_id = "/world";
+//       poseStamped.header.stamp = ros::Time::now();
+//       poseStamped.pose = pose;
+
+//       global_msg.poses.push_back(poseStamped);
+//     }
+//   }
+//   mGlobalPathRealTimePublisher.publish(global_msg);
+// }
+
 void PGOAgentROS::timerCallback(const ros::TimerEvent &event) {
   publishNoopCommand();
   publishLiftingMatrix();
@@ -1441,6 +1602,7 @@ void PGOAgentROS::timerCallback(const ros::TimerEvent &event) {
 void PGOAgentROS::visualizationTimerCallback(const ros::TimerEvent &event) {
   publishOptimizedTrajectory();
   publishLoopClosureMarkers();
+  publishGlobalMesh();
 }
 
 void PGOAgentROS::storeActiveNeighborPoses() {
