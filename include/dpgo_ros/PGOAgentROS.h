@@ -194,6 +194,8 @@ class PGOAgentROS : public PGOAgent {
   // Store the latest measurement weights with neighbors
   std::unordered_map<EdgeID, double, HashEdgeID> mCachedEdgeWeights;
 
+  std::unordered_map<EdgeID, double, HashEdgeID> mCachedUWBEdgeWeights;
+
   // Last time reset is called
   ros::Time mLastResetTime;
 

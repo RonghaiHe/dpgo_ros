@@ -1093,6 +1093,20 @@ void PGOAgentROS::commandCallback(const CommandConstPtr &msg) {
             }
           }
         }
+        // uwb
+        for (auto &m : mPoseGraph->activeUWBMeasurements()) {
+          if (!m->fixedWeight && computeMeasurementResidual(*m, &residual)) {
+            weight = mRobustCost.weight(residual);
+            if (weight < mParamsROS.weightConvergenceThreshold) {
+              ROS_INFO("Reject uwb measurement with residual %f and weight %f.",
+                       residual,
+                       weight);
+              m->weight = 0;
+              m->fixedWeight = true;
+            }
+          }
+        }
+
         const auto stat = mPoseGraph->statistics();
         ROS_INFO(
             "Robot %u loop closure statistics:\n "
@@ -1491,6 +1505,18 @@ void PGOAgentROS::storeActiveEdgeWeights() {
       num_edges_stored++;
     }
   }
+
+  // 单独处理 UWB相关
+  for (const RelativeSEMeasurement *m : mPoseGraph->activeUWBMeasurements()) {
+    const PoseID src_id(m->r1, m->p1);
+    const PoseID dst_id(m->r2, m->p2);
+    const EdgeID edge_id(src_id, dst_id);
+    if (edge_id.isSharedLoopClosure()) {
+      mCachedUWBEdgeWeights[edge_id] = m->weight;
+      num_edges_stored++;
+    }
+  }
+
   ROS_INFO("Stored %i active edge weights.", num_edges_stored);
 }
 
@@ -1506,6 +1532,18 @@ void PGOAgentROS::setInactiveEdgeWeights() {
       num_edges_set++;
     }
   }
+  // 单独处理 UWB相关
+  for (RelativeSEMeasurement *m : mPoseGraph->inactiveUWBMeasurements()) {
+    const PoseID src_id(m->r1, m->p1);
+    const PoseID dst_id(m->r2, m->p2);
+    const EdgeID edge_id(src_id, dst_id);
+    const auto &it = mCachedUWBEdgeWeights.find(edge_id);
+    if (it != mCachedUWBEdgeWeights.end()) {
+      m->weight = it->second;
+      num_edges_set++;
+    }
+  }
+
   ROS_INFO("Set %i inactive edge weights.", num_edges_set);
 }
 
