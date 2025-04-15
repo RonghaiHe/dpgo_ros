@@ -155,6 +155,8 @@ class PGOAgentROS : public PGOAgent {
   // Handle to log file
   std::ofstream mIterationLog;
 
+  std::ofstream mLoopClosureLog;
+
   // Number of initialization steps performed
   int mInitStepsDone;
 
@@ -330,6 +332,7 @@ class PGOAgentROS : public PGOAgent {
   // Log iteration
   bool createIterationLog(const std::string &filename);
   bool logIteration();
+  bool logLoopClosure();
   bool logString(const std::string &str);
 
   // ROS callbacks

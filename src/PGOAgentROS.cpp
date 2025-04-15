@@ -262,6 +262,9 @@ void PGOAgentROS::reset() {
   if (mIterationLog.is_open()) {
     mIterationLog.close();
   }
+  if (mLoopClosureLog.is_open()) {
+    mLoopClosureLog.close();
+  }
   if (mParamsROS.completeReset) {
     ROS_WARN("Reset DPGO completely.");
     mPoseGraph = std::make_shared<PoseGraph>(mID, r, d);  // Reset pose graph
@@ -895,6 +898,22 @@ bool PGOAgentROS::createIterationLog(const std::string &filename) {
                    "bytes_received, "
                    "iter_time_sec, total_time_sec, rel_change \n";
   mIterationLog.flush();
+
+  if (!mLoopClosureLog.is_open()) {
+    mLoopClosureLog.close();
+    auto time_since_launch = ros::Time::now() - mLaunchTime;
+    int sec_since_launch = int(time_since_launch.toSec());
+    mLoopClosureLog.open(mParams.logDirectory + "pose_constraint_" +
+                         std::to_string(sec_since_launch) + ".csv");
+  }
+  if (!mLoopClosureLog.is_open()) {
+    ROS_ERROR_STREAM("Error opening log file about pose constraints");
+    return false;
+  }
+  mLoopClosureLog << "time_since,accept_private_lc,accept_public_lc,accept_uwb,"
+                     "reject_private_lc,reject_public_lc,reject_uwb,"
+                     "undecided_private_lc,undecided_public_lc,undecided_uwb \n";
+  mLoopClosureLog.flush();
   return true;
 }
 
@@ -922,6 +941,27 @@ bool PGOAgentROS::logIteration() {
   mIterationLog << globalElapsedSec << ",";
   mIterationLog << mStatus.relativeChange << "\n";
   mIterationLog.flush();
+  return true;
+}
+
+bool PGOAgentROS::logLoopClosure() {
+  if (!mParams.logData) {
+    return false;
+  }
+
+  if (!mLoopClosureLog.is_open()) {
+    ROS_ERROR("Error opening log file about pose constraints");
+    return false;
+  }
+  auto time_since_launch = ros::Time::now() - mLaunchTime;
+  int sec_since_launch = int(time_since_launch.toSec());
+  const auto stat = mPoseGraph->statistics();
+  mLoopClosureLog << std::to_string(sec_since_launch) << "," << stat.ac_private_lc
+                  << "," << stat.ac_shared_lc << "," << stat.ac_uwb_lc << ","
+                  << stat.re_private_lc << "," << stat.re_shared_lc << ","
+                  << stat.re_uwb_lc << "," << stat.undecided_private_lc << ","
+                  << stat.undecided_shared_lc << "," << stat.undecided_uwb_lc << "\n";
+  mLoopClosureLog.flush();
   return true;
 }
 
@@ -1112,15 +1152,31 @@ void PGOAgentROS::commandCallback(const CommandConstPtr &msg) {
         }
 
         const auto stat = mPoseGraph->statistics();
+        // ROS_INFO(
+        //     "Robot %u loop closure statistics:\n "
+        //     "accepted: %f\n "
+        //     "rejected: %f\n "
+        //     "undecided: %f\n",
+        //     mID,
+        //     stat.accept_loop_closures,
+        //     stat.reject_loop_closures,
+        //     stat.undecided_loop_closures);
         ROS_INFO(
-            "Robot %u loop closure statistics:\n "
-            "accepted: %f\n "
-            "rejected: %f\n "
-            "undecided: %f\n",
+            "Robot %u loop closure statistics: Local LC, Shared LC, UWB\n "
+            "ac: %ld, %ld, %ld\n "
+            "re: %ld, %ld, %ld\n "
+            "undecided: %ld, %ld, %ld\n",
             mID,
-            stat.accept_loop_closures,
-            stat.reject_loop_closures,
-            stat.undecided_loop_closures);
+            stat.ac_private_lc,
+            stat.ac_shared_lc,
+            stat.ac_uwb_lc,
+            stat.re_private_lc,
+            stat.re_shared_lc,
+            stat.re_uwb_lc,
+            stat.undecided_private_lc,
+            stat.undecided_shared_lc,
+            stat.undecided_uwb_lc);
+        logLoopClosure();
         publishMeasurementWeights();
       }
 
