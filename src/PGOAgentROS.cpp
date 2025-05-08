@@ -307,8 +307,9 @@ bool PGOAgentROS::requestPoseGraph() {
       ROS_ERROR("Robot %u received irrelevant measurement! ", getID());
     }
     if (edge.type == pose_graph_tools_msgs::PoseGraphEdge::UWB) {
-      m.kappa = 1000;
-      m.tau = 10;
+      m.kappa = 5000;
+      m.tau = 50;
+      m.number_edge_dis = edge.number_edge_dis;
       addUWBMeasurement(m);
     } else if (!mPoseGraph->hasMeasurement(src_id, dst_id)) {
       addMeasurement(m);
